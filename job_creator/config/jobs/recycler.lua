@@ -18,10 +18,14 @@ RegisterJob({
         label = 'Centro de Reciclaje',
     },
 
-    -- Requisitos para poder trabajar (opcional)
+    -- Requisitos para poder trabajar (opcional). Se validan en el servidor.
     requirements = {
-        job = nil,        -- nombre de job del framework requerido, o nil para libre
-        item = nil,       -- item necesario para empezar, o nil
+        -- job del framework requerido. Acepta:
+        --   'police'                       -> solo exige el nombre
+        --   { name = 'police', grade = 2 } -> exige nombre y rango mínimo
+        -- o nil para que el job sea libre (cualquiera puede hacerlo).
+        job = nil,
+        item = nil,       -- item necesario para empezar (no se consume), o nil
     },
 
     -- Secuencia de pasos del ciclo de trabajo

@@ -18,7 +18,10 @@ RegisterCommand('jc_jobs', function(source)
     end
 end, true)
 
--- Export para otros recursos: dar recompensa de un job programáticamente
+-- Export para otros recursos: dar recompensa de un job programáticamente.
+-- Pasa el source explícito y marca la llamada como confiable (sin checks
+-- de distancia/cooldown, ya que no proviene del cliente del jugador).
 exports('CompleteStepFor', function(source, jobName, stepId)
-    TriggerEvent('job_creator:completeStep', jobName, stepId)
+    if not (JobCreator and JobCreator.ProcessStep) then return false end
+    return JobCreator.ProcessStep(source, jobName, stepId, { trusted = true })
 end)

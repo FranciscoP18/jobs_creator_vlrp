@@ -2,7 +2,7 @@ fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
 
-author 'TuNombre'
+author 'Panchuuu'
 description 'Job Creator - Sistema de jobs declarativo con bridge multi-recurso'
 version '1.0.0'
 
@@ -32,6 +32,7 @@ client_scripts {
 
 server_scripts {
     'bridge/shared.lua',
+    'bridge/framework/loader_server.lua',
     'bridge/inventory/loader_server.lua',
     'bridge/notify/loader_server.lua',
     -- Core

@@ -46,7 +46,41 @@ local function findStep(job, stepId)
     return nil
 end
 
--- Verifica requisitos (job del framework, items a consumir)
+-- Verifica los requisitos a nivel de JOB (trabajo del framework, item de acceso).
+-- requirements.job puede ser:
+--   'police'                          -> solo exige el nombre del job
+--   { name = 'police', grade = 2 }    -> exige nombre y rango mínimo
+local function meetsJobRequirements(src, job)
+    local req = job.requirements
+    if not req then return true end
+
+    if req.job then
+        local needName, needGrade
+        if type(req.job) == 'table' then
+            needName, needGrade = req.job.name, req.job.grade or 0
+        else
+            needName, needGrade = req.job, 0
+        end
+
+        local pj = Bridge.Framework.GetJob(src)
+        if not pj or pj.name ~= needName then
+            return false, 'No tienes el trabajo requerido'
+        end
+        if (pj.grade or 0) < needGrade then
+            return false, 'Tu rango es insuficiente para esto'
+        end
+    end
+
+    if req.item then
+        if Bridge.Inventory.GetItemCount(src, req.item) < 1 then
+            return false, ('Necesitas %s para trabajar aquí'):format(req.item)
+        end
+    end
+
+    return true
+end
+
+-- Verifica requisitos del STEP (items a consumir)
 local function meetsRequirements(src, step)
     if step.requires then
         for _, req in ipairs(step.requires) do
@@ -85,51 +119,66 @@ local function giveReward(src, reward)
     if reward.money then
         local amount = randomBetween(reward.money.min, reward.money.max)
         if amount > 0 then
-            -- Usamos el bridge de inventario para 'money' como item si es ox,
-            -- o el framework para cuentas. Aquí lo dejamos vía addItem 'money'/'cash'
-            -- que en la mayoría de setups equivale a la cuenta cash.
-            Bridge.Inventory.AddItem(src, reward.money.account or 'cash', amount)
+            local account = reward.money.account or 'cash'
+            -- El dinero es una CUENTA del framework (cash/bank), no un item.
+            local ok = Bridge.Framework.AddMoney(src, account, amount)
+            if not ok then
+                -- Fallback para setups ox puros sin framework: dinero como item.
+                Bridge.Inventory.AddItem(src, 'money', amount)
+            end
         end
     end
 end
 
--- Evento principal: el cliente pide completar un step.
-RegisterNetEvent('job_creator:completeStep', function(jobName, stepId)
-    local src = source
+-- Lógica central de completar un step. Recibe src EXPLÍCITO para poder
+-- invocarla tanto desde el evento de red como desde el export programático.
+--   opts.trusted = true  -> omite anti-exploit de distancia y cooldown
+--                           (la llamada viene de otro recurso, no del cliente)
+local function processStep(src, jobName, stepId, opts)
+    opts = opts or {}
 
     local job = Config.Jobs[jobName]
-    if not job then return end
+    if not job then return false end
 
     local step = findStep(job, stepId)
     if not step then
-        Bridge.Print('warn', ('Jugador %d pidió un step inexistente: %s/%s'):format(src, jobName, tostring(stepId)))
-        return
+        Bridge.Print('warn', ('Jugador %s pidió un step inexistente: %s/%s'):format(tostring(src), jobName, tostring(stepId)))
+        return false
     end
 
-    -- Anti-exploit: distancia real
-    if not isNearStep(src, step) then
-        Bridge.Print('warn', ('Jugador %d demasiado lejos del step %s'):format(src, stepId))
-        return
+    if not opts.trusted then
+        -- Anti-exploit: distancia real
+        if not isNearStep(src, step) then
+            Bridge.Print('warn', ('Jugador %d demasiado lejos del step %s'):format(src, stepId))
+            return false
+        end
+
+        -- Anti-spam: cooldown basado en la duración del progreso del step
+        local stepKey = jobName .. ':' .. stepId
+        local cdDuration = (step.progress and step.progress.duration or 1000) - 500
+        if not checkCooldown(src, stepKey, cdDuration) then
+            return false -- silencioso: probablemente doble click / lag
+        end
     end
 
-    -- Anti-spam: cooldown basado en la duración del progreso del step
-    local stepKey = jobName .. ':' .. stepId
-    local cdDuration = (step.progress and step.progress.duration or 1000) - 500
-    if not checkCooldown(src, stepKey, cdDuration) then
-        return -- silencioso: probablemente doble click / lag
+    -- Requisitos a nivel de job (trabajo del framework, item de acceso)
+    local okJob, jobReason = meetsJobRequirements(src, job)
+    if not okJob then
+        Bridge.Notify.SendTo(src, { title = job.label, description = jobReason, type = 'error' })
+        return false
     end
 
-    -- Requisitos
+    -- Requisitos del step (items a consumir)
     local ok, reason = meetsRequirements(src, step)
     if not ok then
         Bridge.Notify.SendTo(src, { title = job.label, description = reason, type = 'error' })
-        return
+        return false
     end
 
     -- Consumir requisitos antes de dar recompensa
     if not consumeRequirements(src, step) then
         Bridge.Notify.SendTo(src, { title = job.label, description = 'No se pudieron retirar los materiales', type = 'error' })
-        return
+        return false
     end
 
     -- Otorgar recompensa
@@ -140,6 +189,16 @@ RegisterNetEvent('job_creator:completeStep', function(jobName, stepId)
         description = ('%s completado'):format(step.label or stepId),
         type = 'success',
     })
+    return true
+end
+
+-- Expuesto para que server/main.lua lo use en el export CompleteStepFor.
+JobCreator = JobCreator or {}
+JobCreator.ProcessStep = processStep
+
+-- Evento principal: el cliente pide completar un step.
+RegisterNetEvent('job_creator:completeStep', function(jobName, stepId)
+    processStep(source, jobName, stepId)
 end)
 
 -- Limpieza de cooldowns al desconectar (evita fuga de memoria)
