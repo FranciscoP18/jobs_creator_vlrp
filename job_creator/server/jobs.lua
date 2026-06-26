@@ -103,6 +103,20 @@ local function consumeRequirements(src, step)
     return true
 end
 
+-- Comprueba que el jugador pueda cargar TODOS los items de recompensa.
+-- Usamos item.max (el peor caso) para no consumir materiales y luego
+-- descubrir que el premio no cabe. Devuelve false + nombre del item que no cabe.
+local function canCarryReward(src, reward)
+    if not reward or not reward.items then return true end
+    for _, item in ipairs(reward.items) do
+        local worstCase = item.max or item.min or 1
+        if not Bridge.Inventory.CanCarry(src, item.name, worstCase) then
+            return false, item.name
+        end
+    end
+    return true
+end
+
 -- Entrega la recompensa del step (items y/o dinero)
 local function giveReward(src, reward)
     if not reward then return end
@@ -122,8 +136,9 @@ local function giveReward(src, reward)
             local account = reward.money.account or 'cash'
             -- El dinero es una CUENTA del framework (cash/bank), no un item.
             local ok = Bridge.Framework.AddMoney(src, account, amount)
-            if not ok then
-                -- Fallback para setups ox puros sin framework: dinero como item.
+            -- Fallback a item 'money' SOLO si no hay framework (setup ox puro).
+            -- Si hay framework y AddMoney falló de verdad, NO duplicamos el pago.
+            if not ok and not Bridge.Framework.Active then
                 Bridge.Inventory.AddItem(src, 'money', amount)
             end
         end
@@ -175,6 +190,13 @@ local function processStep(src, jobName, stepId, opts)
         return false
     end
 
+    -- Comprobar espacio ANTES de consumir materiales (evita perder la recompensa)
+    local canCarry = canCarryReward(src, step.reward)
+    if not canCarry then
+        Bridge.Notify.SendTo(src, { title = job.label, description = 'No tienes espacio en el inventario', type = 'error' })
+        return false
+    end
+
     -- Consumir requisitos antes de dar recompensa
     if not consumeRequirements(src, step) then
         Bridge.Notify.SendTo(src, { title = job.label, description = 'No se pudieron retirar los materiales', type = 'error' })
@@ -198,7 +220,9 @@ JobCreator.ProcessStep = processStep
 
 -- Evento principal: el cliente pide completar un step.
 RegisterNetEvent('job_creator:completeStep', function(jobName, stepId)
-    processStep(source, jobName, stepId)
+    -- Capturamos source en local: el global puede cambiar tras un yield interno.
+    local src = source
+    processStep(src, jobName, stepId)
 end)
 
 -- Limpieza de cooldowns al desconectar (evita fuga de memoria)

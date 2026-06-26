@@ -1,7 +1,12 @@
 -- ============================================================
 -- client/jobs.lua
--- Motor que interpreta las definiciones de Config.Jobs y construye
+-- Motor que interpreta las definiciones de job y construye
 -- blips + zonas de target. Al interactuar, valida con el servidor.
+--
+-- IMPORTANTE: las definiciones vigentes llegan SINCRONIZADAS desde el
+-- servidor (fuente de verdad = DB), no de la copia local de Config.Jobs.
+-- Así, cuando un admin edita un job en el panel, el servidor reenvía la
+-- lista y reconstruimos las zonas en caliente, sin reiniciar el recurso.
 -- ============================================================
 
 local createdZones = {}  -- ids de zonas para poder limpiarlas
@@ -40,7 +45,9 @@ end
 -- Barra de progreso usando ox_lib si está; si no, fallback simple con Wait.
 local function doProgress(progress)
     if not progress then return true end
-    if Bridge.IsStarted('ox_lib') then
+    -- Usamos el global `lib` directamente: comprobar IsStarted('ox_lib') no
+    -- garantiza que la librería esté cargada (hace falta @ox_lib/init.lua).
+    if lib and lib.progressCircle then
         return lib.progressCircle({
             duration = progress.duration,
             label = progress.label or 'Trabajando...',
@@ -73,7 +80,7 @@ end
 -- Construye las zonas de target de un job
 local function buildJob(job)
     createBlip(job)
-    for _, step in ipairs(job.steps) do
+    for _, step in ipairs(job.steps or {}) do
         local t = step.target
         if t then
             local id = Bridge.Target.AddBoxZone({
@@ -96,25 +103,47 @@ local function buildJob(job)
     end
 end
 
--- Inicializa todos los jobs al arrancar el recurso
-CreateThread(function()
-    -- Pequeña espera para asegurar que los bridges resolvieron sus providers
-    Wait(500)
-    for _, job in pairs(Config.Jobs) do
-        buildJob(job)
-    end
-    Bridge.Print('info', ('Cargados %d job(s)'):format(#createdBlips))
-end)
-
--- Limpieza al detener el recurso (evita zonas huérfanas)
-AddEventHandler('onResourceStop', function(res)
-    if res ~= GetCurrentResourceName() then return end
+-- Limpia blips y zonas existentes (antes de reconstruir o al detener)
+local function clearAll()
     for _, id in ipairs(createdZones) do
         if id then Bridge.Target.RemoveZone(id) end
     end
     for _, blip in ipairs(createdBlips) do
         RemoveBlip(blip)
     end
+    createdZones = {}
+    createdBlips = {}
+end
+
+-- Reconstruye TODO a partir de la lista sincronizada (coords como {x,y,z}).
+local function rebuild(jobs)
+    clearAll()
+    for _, raw in ipairs(jobs or {}) do
+        local job = Bridge.NormalizeJob(raw) -- {x,y,z} -> vec3
+        buildJob(job)
+    end
+    Bridge.Print('info', ('Cargados %d job(s)'):format(#createdBlips))
+end
+
+-- Al arrancar: espera el bridge de target y pide la sincronización al servidor.
+CreateThread(function()
+    local tries = 0
+    while not (Bridge.Target and Bridge.Target.AddBoxZone) and tries < 100 do
+        Wait(50)
+        tries = tries + 1
+    end
+    TriggerServerEvent('job_creator:clientReady')
+end)
+
+-- El servidor envía/actualiza la lista de jobs (al cargar y tras cada edición).
+RegisterNetEvent('job_creator:syncJobs', function(jobs)
+    rebuild(jobs)
+end)
+
+-- Limpieza al detener el recurso (evita zonas huérfanas)
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    clearAll()
 end)
 
 -- Recibe notificaciones enviadas desde el servidor

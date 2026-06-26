@@ -54,7 +54,7 @@ local function qb_Close()
     exports['qb-menu']:closeMenu()
 end
 
-if provider == 'ox_lib' then
+if provider == 'ox_lib' and lib then
     Bridge.Menu.Open = ox_Open
     Bridge.Menu.Close = ox_Close
     Bridge.Print('info', 'Menu provider: ox_lib')

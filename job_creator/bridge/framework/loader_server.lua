@@ -16,6 +16,10 @@ Bridge.Framework = {}
 -- Orden importante: qbx_core antes que qb-core (Qbox puede convivir con shims qb).
 local framework = Bridge.Resolve({ 'es_extended', 'qbx_core', 'qb-core' })
 
+-- Framework activo expuesto para otros módulos (ej: decidir fallback de dinero).
+-- nil = no hay framework detectado (setup ox puro).
+Bridge.Framework.Active = framework
+
 local ESX, QBCore
 
 CreateThread(function()

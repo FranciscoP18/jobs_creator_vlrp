@@ -14,6 +14,10 @@ version '1.0.0'
 -- ============================================================
 
 shared_scripts {
+    -- ox_lib se carga primero para que el global `lib` exista en cliente/servidor.
+    -- Si ox_lib NO está instalado, FiveM omite este archivo y `lib` queda nil;
+    -- el código usa `if lib then ...` y cae a los fallbacks. No es obligatorio.
+    '@ox_lib/init.lua',
     'config/config.lua',
     'config/jobs/*.lua',
 }
@@ -28,9 +32,12 @@ client_scripts {
     -- Core
     'client/main.lua',
     'client/jobs.lua',
+    'client/admin.lua',   -- puente NUI del panel
 }
 
 server_scripts {
+    -- oxmysql: librería de acceso a la base de datos (persistencia del panel).
+    '@oxmysql/lib/MySQL.lua',
     'bridge/shared.lua',
     'bridge/framework/loader_server.lua',
     'bridge/inventory/loader_server.lua',
@@ -38,7 +45,19 @@ server_scripts {
     -- Core
     'server/main.lua',
     'server/jobs.lua',
+    'server/store.lua',   -- persistencia DB + sync + API del panel
 }
 
--- Dependencias opcionales (el bridge las detecta en runtime, no son obligatorias)
--- ox_lib, ox_target, ox_inventory, qb-target, qb-menu, etc.
+-- Panel NUI (editor de jobs in-game)
+ui_page 'html/index.html'
+
+files {
+    'html/index.html',
+    'html/style.css',
+    'html/script.js',
+}
+
+-- Dependencias:
+--   oxmysql  -> REQUERIDO para la persistencia y el panel.
+--   ox_lib, ox_target, ox_inventory, qb-target, qb-menu, etc. -> opcionales
+--   (el bridge las detecta en runtime; sin ellas se usan los fallbacks).

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Job Creator</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="overlay" class="hidden">
+        <div id="panel">
+            <header id="topbar">
+                <div class="brand">
+                    <span class="logo">JC</span>
+                    <div>
+                        <h1>Job Creator</h1>
+                        <p class="subtitle">Editor de trabajos in-game</p>
+                    </div>
+                </div>
+                <div class="tabs">
+                    <button class="tab active" data-tab="jobs">Jobs</button>
+                    <button class="tab" data-tab="settings">Ajustes</button>
+                </div>
+                <button id="closeBtn" class="icon-btn" title="Cerrar (Esc)">✕</button>
+            </header>
+
+            <!-- ===================== VISTA JOBS ===================== -->
+            <div id="view-jobs" class="view">
+                <aside id="sidebar">
+                    <button id="newJobBtn" class="btn primary block">+ Nuevo job</button>
+                    <ul id="jobList"></ul>
+                </aside>
+                <main id="editor">
+                    <div id="emptyState" class="empty">
+                        <p>Selecciona un job de la izquierda o crea uno nuevo.</p>
+                    </div>
+                    <form id="jobForm" class="hidden"></form>
+                    <footer id="editorFooter" class="hidden">
+                        <button type="button" id="deleteJobBtn" class="btn danger">Eliminar job</button>
+                        <button type="button" id="saveJobBtn" class="btn primary">Guardar job</button>
+                    </footer>
+                </main>
+            </div>
+
+            <!-- ===================== VISTA AJUSTES ===================== -->
+            <div id="view-settings" class="view hidden">
+                <div class="settings-wrap">
+                    <h2>Ajustes globales</h2>
+                    <label class="field check">
+                        <input type="checkbox" id="set-debug" />
+                        <span>Modo debug (zonas de target visibles + prints extra)</span>
+                    </label>
+                    <label class="field">
+                        <span>Intervalo de pago por defecto (ms)</span>
+                        <input type="number" id="set-payinterval" min="1000" step="1000" />
+                    </label>
+                    <button type="button" id="saveSettingsBtn" class="btn primary">Guardar ajustes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
