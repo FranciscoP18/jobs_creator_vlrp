@@ -8,6 +8,13 @@ Config = {}
 Config.Debug = false              -- activa zonas de debug del target y prints extra
 Config.DefaultPayInterval = 60000 -- ms, intervalo de pago por defecto en jobs con sueldo
 
+-- Modo de interacción con las zonas/stations:
+--   'target' -> usar sistema de target (ox_target/qb-target)  [por defecto]
+--   'key'    -> acercarse y pulsar la tecla E (marker + texto)
+--   'both'   -> ambos a la vez
+-- Configurable también desde el panel (Ajustes). El cliente lo recibe al sincronizar.
+Config.InteractMode = 'target'
+
 -- Tabla donde se registran todos los jobs definidos en config/jobs/*.lua
 -- NO tocar: la rellenan los archivos de job mediante RegisterJob().
 Config.Jobs = {}

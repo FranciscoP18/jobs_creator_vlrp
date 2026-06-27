@@ -77,6 +77,7 @@ local function persistSettings()
     local data = json.encode({
         Debug = Config.Debug,
         DefaultPayInterval = Config.DefaultPayInterval,
+        InteractMode = Config.InteractMode,
     })
     MySQL.prepare.await(
         'INSERT INTO jobcreator_settings (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data)',
@@ -96,7 +97,12 @@ local function buildSyncPayload()
 end
 
 local function syncTo(target)
-    TriggerClientEvent('job_creator:syncJobs', target, buildSyncPayload())
+    -- Enviamos también las settings que el cliente necesita (modo de
+    -- interacción y debug), para que se apliquen al reconstruir.
+    TriggerClientEvent('job_creator:syncJobs', target, buildSyncPayload(), {
+        Debug = Config.Debug,
+        InteractMode = Config.InteractMode,
+    })
 end
 
 -- ---------- Carga inicial: seed + load ----------
@@ -140,6 +146,7 @@ CreateThread(function()
         if ok and data then
             if data.Debug ~= nil then Config.Debug = data.Debug end
             if data.DefaultPayInterval then Config.DefaultPayInterval = data.DefaultPayInterval end
+            if data.InteractMode then Config.InteractMode = data.InteractMode end
         end
     else
         persistSettings() -- primera vez: guarda los defaults del .lua
@@ -149,6 +156,8 @@ CreateThread(function()
     for _ in pairs(Config.Jobs) do count = count + 1 end
     Bridge.Print('info', ('Store listo: %d job(s) desde la DB'):format(count))
 
+    -- Avisa a otros módulos (service.lua registra los stashes con esto).
+    TriggerEvent('job_creator:jobsReloaded')
     -- Sincroniza a quien ya estuviera conectado (reinicio de recurso en caliente).
     syncTo(-1)
 end)
@@ -175,6 +184,7 @@ RegisterNetEvent('job_creator:requestPanel', function()
         settings = {
             Debug = Config.Debug,
             DefaultPayInterval = Config.DefaultPayInterval,
+            InteractMode = Config.InteractMode,
         },
     })
 end)
@@ -196,6 +206,7 @@ RegisterNetEvent('job_creator:saveJob', function(def)
     Config.Jobs[def.name] = Bridge.NormalizeJob(def)
 
     Bridge.Notify.SendTo(src, { title = 'Job Creator', description = ('Job "%s" guardado'):format(def.name), type = 'success' })
+    TriggerEvent('job_creator:jobsReloaded') -- re-registra stashes si cambió
     syncTo(-1) -- todos los clientes reconstruyen sus zonas
 end)
 
@@ -221,6 +232,11 @@ RegisterNetEvent('job_creator:saveSettings', function(settings)
     if settings.Debug ~= nil then Config.Debug = settings.Debug and true or false end
     if tonumber(settings.DefaultPayInterval) then
         Config.DefaultPayInterval = math.max(1000, tonumber(settings.DefaultPayInterval))
+    end
+    -- Solo aceptamos modos válidos (evita valores arbitrarios del cliente).
+    local validModes = { target = true, key = true, both = true }
+    if settings.InteractMode and validModes[settings.InteractMode] then
+        Config.InteractMode = settings.InteractMode
     end
     persistSettings()
 

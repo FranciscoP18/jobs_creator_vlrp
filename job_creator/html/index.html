@@ -54,6 +54,14 @@
                         <span>Intervalo de pago por defecto (ms)</span>
                         <input type="number" id="set-payinterval" min="1000" step="1000" />
                     </label>
+                    <label class="field">
+                        <span>Modo de interacción</span>
+                        <select id="set-interactmode">
+                            <option value="target">Target (ox_target / qb-target)</option>
+                            <option value="key">Tecla E (acercarse y pulsar E)</option>
+                            <option value="both">Ambos (target + tecla E)</option>
+                        </select>
+                    </label>
                     <button type="button" id="saveSettingsBtn" class="btn primary">Guardar ajustes</button>
                 </div>
             </div>

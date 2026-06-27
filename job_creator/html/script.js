@@ -32,6 +32,10 @@ async function nui(cb, data) {
 // ---------- Conversión servidor <-> editor ----------
 function num(v, d) { const n = parseFloat(v); return isNaN(n) ? (d || 0) : n; }
 
+// Campos que SÍ edita el panel. El resto (type, duty, stash, wardrobe, ...)
+// se preserva intacto para no perderlo al guardar (passthrough).
+const EDITED_KEYS = ['name', 'label', 'blip', 'requirements', 'steps'];
+
 function toEditor(job) {
     const blip = job.blip || null;
     const req = job.requirements || {};
@@ -39,7 +43,11 @@ function toEditor(job) {
     if (typeof req.job === 'string') reqJobName = req.job;
     else if (req.job && typeof req.job === 'object') { reqJobName = req.job.name || ''; reqJobGrade = req.job.grade || 0; }
 
+    const extra = {};
+    Object.keys(job).forEach((k) => { if (!EDITED_KEYS.includes(k)) extra[k] = job[k]; });
+
     return {
+        _extra: extra,
         name: job.name || '',
         label: job.label || '',
         hasBlip: !!blip,
@@ -129,6 +137,13 @@ function toServer(ed) {
 
         return step;
     });
+
+    // Re-inyecta los campos que el panel no edita (type, duty, stash, wardrobe...)
+    if (ed._extra) {
+        Object.keys(ed._extra).forEach((k) => {
+            if (!(k in job)) job[k] = ed._extra[k];
+        });
+    }
 
     return job;
 }
@@ -473,6 +488,7 @@ function renderRowList(title, rows, fieldsFn, onAdd, onRemove) {
 function newJob() {
     if (state.selected >= 0) syncFormToState();
     const ed = {
+        _extra: {},
         name: 'nuevo_job', label: 'Nuevo Job', hasBlip: false,
         blip: { x: 0, y: 0, z: 0, sprite: 1, color: 0, scale: 0.8, label: '' },
         req: { jobName: '', jobGrade: 0, item: '' },
@@ -514,6 +530,7 @@ function switchTab(tab) {
 function loadSettings() {
     document.getElementById('set-debug').checked = !!state.settings.Debug;
     document.getElementById('set-payinterval').value = state.settings.DefaultPayInterval || 60000;
+    document.getElementById('set-interactmode').value = state.settings.InteractMode || 'target';
 }
 
 // ============================================================
@@ -560,6 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await nui('saveSettings', {
             Debug: document.getElementById('set-debug').checked,
             DefaultPayInterval: parseInt(document.getElementById('set-payinterval').value) || 60000,
+            InteractMode: document.getElementById('set-interactmode').value,
         });
     });
 });

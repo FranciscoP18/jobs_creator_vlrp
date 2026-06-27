@@ -37,7 +37,14 @@ local function ox_GetItemCount(source, item)
 end
 
 local function ox_CanCarry(source, item, count)
-    return exports.ox_inventory:CanCarryItem(source, item, count)
+    -- Si el item NO está definido en ox_inventory, CanCarryItem devuelve false.
+    -- Eso es un error de configuración (item inexistente), no falta de espacio:
+    -- lo avisamos y dejamos pasar para no bloquear el job con un mensaje falso.
+    if not exports.ox_inventory:Items(item) then
+        Bridge.Print('warn', ('Item "%s" no está registrado en ox_inventory (revisa data/items.lua)'):format(item))
+        return true
+    end
+    return exports.ox_inventory:CanCarryItem(source, item, count) or false
 end
 
 -- ---------- ESX (sin ox_inventory) ----------
@@ -118,6 +125,31 @@ else
     Bridge.Inventory.AddItem      = function() return false end
     Bridge.Inventory.RemoveItem   = function() return false end
     Bridge.Inventory.GetItemCount = function() return 0 end
-    Bridge.Inventory.CanCarry     = function() return false end
+    -- Sin inventario no podemos juzgar el espacio: devolvemos true para no
+    -- bloquear los jobs con un "sin espacio" falso (AddItem simplemente no hará nada).
+    Bridge.Inventory.CanCarry     = function() return true end
     Bridge.Print('error', 'Sin sistema de inventario ni framework detectado')
+end
+
+-- ---------- Registro de stashes (cofres de servicio) ----------
+-- Registra un stash COMPARTIDO (sin owner) para que lo abra cualquiera con
+-- acceso. Solo ox_inventory permite registro programático; con otros
+-- inventarios el stash se crea/abre al vuelo desde el cliente.
+--   data = { id, label, slots, weight }
+--   data = { id, label, slots, weight, groups }
+-- groups: tabla { [jobName] = gradoMinimo } -> ox restringe el acceso al job.
+function Bridge.Inventory.RegisterStash(data)
+    if provider == 'ox_inventory' then
+        exports.ox_inventory:RegisterStash(
+            data.id,
+            data.label or data.id,
+            data.slots or 50,
+            data.weight or 100000,
+            false,       -- owner = false -> stash compartido (no por jugador)
+            data.groups  -- restringe por job/grade si se indica (seguridad real)
+        )
+        return true
+    end
+    -- qb-inventory / esx: no requieren registro previo; se abren bajo demanda.
+    return false
 end

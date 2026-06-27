@@ -29,8 +29,10 @@ client_scripts {
     'bridge/notify/loader.lua',
     'bridge/menu/loader.lua',
     'bridge/inventory/loader_client.lua',
+    'bridge/clothing/loader.lua',   -- vestuario (illenium / natives)
     -- Core
     'client/main.lua',
+    'client/interact.lua',   -- capa de interacción (target / tecla E)
     'client/jobs.lua',
     'client/admin.lua',   -- puente NUI del panel
 }
@@ -45,7 +47,8 @@ server_scripts {
     -- Core
     'server/main.lua',
     'server/jobs.lua',
-    'server/store.lua',   -- persistencia DB + sync + API del panel
+    'server/store.lua',     -- persistencia DB + sync + API del panel
+    'server/service.lua',   -- duty + stashes de servicio (police/ems/mechanic)
 }
 
 -- Panel NUI (editor de jobs in-game)

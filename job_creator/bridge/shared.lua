@@ -79,9 +79,21 @@ end
 -- Trabaja sobre una COPIA para no mutar la definición original.
 local function transformJobCoords(job, fn)
     local out = Bridge.DeepCopy(job)
+
     if out.blip and out.blip.coords then
         out.blip.coords = fn(out.blip.coords)
     end
+
+    -- Stations (jobs de servicio): cada una tiene coords y opcionalmente size.
+    for _, key in ipairs({ 'duty', 'stash', 'wardrobe' }) do
+        local station = out[key]
+        if type(station) == 'table' then
+            if station.coords then station.coords = fn(station.coords) end
+            if station.size then station.size = fn(station.size) end
+        end
+    end
+
+    -- Steps (jobs de economía)
     if out.steps then
         for _, step in ipairs(out.steps) do
             if step.target then
@@ -90,6 +102,7 @@ local function transformJobCoords(job, fn)
             end
         end
     end
+
     return out
 end
 
