@@ -207,6 +207,16 @@ html, body {
     display: flex; align-items: center; justify-content: space-between;
 }
 
+.hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 10px;
+    line-height: 1.5;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 10px;
+    border-radius: 6px;
+}
+
 .row-list { display: flex; flex-direction: column; gap: 8px; }
 .mini-row { display: flex; gap: 8px; align-items: center; }
 .mini-row input, .mini-row select { flex: 1; }
