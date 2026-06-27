@@ -28,6 +28,11 @@
             <div id="view-jobs" class="view">
                 <aside id="sidebar">
                     <button id="newJobBtn" class="btn primary block">+ Nuevo job</button>
+                    <button id="importJobBtn" class="btn ghost block">⇪ Importar JSON</button>
+                    <div class="search-box">
+                        <input id="jobSearch" type="text" placeholder="Buscar job…" />
+                        <span id="jobCount" class="count">0</span>
+                    </div>
                     <ul id="jobList"></ul>
                 </aside>
                 <main id="editor">
@@ -37,7 +42,11 @@
                     <form id="jobForm" class="hidden"></form>
                     <footer id="editorFooter" class="hidden">
                         <button type="button" id="deleteJobBtn" class="btn danger">Eliminar job</button>
-                        <button type="button" id="saveJobBtn" class="btn primary">Guardar job</button>
+                        <div class="footer-right">
+                            <button type="button" id="duplicateJobBtn" class="btn ghost">Duplicar</button>
+                            <button type="button" id="exportJobBtn" class="btn ghost">Exportar JSON</button>
+                            <button type="button" id="saveJobBtn" class="btn primary">Guardar job</button>
+                        </div>
                     </footer>
                 </main>
             </div>
@@ -65,6 +74,21 @@
                     <button type="button" id="saveSettingsBtn" class="btn primary">Guardar ajustes</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Notificaciones internas del panel (no bloquean, a diferencia de alert) -->
+    <div id="toasts"></div>
+
+    <!-- Modal genérico reutilizable (confirmaciones + import/export JSON) -->
+    <div id="modalBackdrop" class="hidden">
+        <div id="modal">
+            <div id="modalHead">
+                <h3 id="modalTitle"></h3>
+                <button type="button" id="modalCloseBtn" class="icon-btn" title="Cerrar">✕</button>
+            </div>
+            <div id="modalBody"></div>
+            <div id="modalFoot"></div>
         </div>
     </div>
 

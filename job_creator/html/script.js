@@ -13,6 +13,8 @@ const state = {
     jobs: [],        // modelos de editor
     settings: {},
     selected: -1,
+    filter: '',      // texto del buscador de la barra lateral
+    dirty: false,    // hay cambios sin guardar en la sesión del panel
 };
 
 // ---------- Comunicación con el cliente Lua ----------
@@ -27,6 +29,74 @@ async function nui(cb, data) {
     } catch (e) {
         return {};
     }
+}
+
+// ============================================================
+//  Toasts (notificaciones internas, no bloqueantes)
+// ============================================================
+function toast(msg, type) {
+    const c = document.getElementById('toasts');
+    if (!c) return;
+    const t = el('div', 'toast ' + (type || 'info'));
+    t.textContent = msg; // textContent: evita inyección si el msg trae nombres de job
+    c.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => {
+        t.classList.remove('show');
+        setTimeout(() => t.remove(), 260);
+    }, 3200);
+}
+
+// ============================================================
+//  Modal genérico (confirmaciones + import/export)
+// ============================================================
+let _onDismiss = null; // se llama al cerrar con ✕ / Escape / click fuera
+
+function openModal(title, bodyEl, actions, onDismiss) {
+    _onDismiss = onDismiss || null;
+    document.getElementById('modalTitle').textContent = title;
+    const body = document.getElementById('modalBody');
+    body.innerHTML = '';
+    body.appendChild(bodyEl);
+    const foot = document.getElementById('modalFoot');
+    foot.innerHTML = '';
+    actions.forEach((a) => {
+        const b = el('button', 'btn ' + (a.cls || ''), a.label);
+        b.type = 'button';
+        b.addEventListener('click', a.onClick);
+        foot.appendChild(b);
+    });
+    document.getElementById('modalBackdrop').classList.remove('hidden');
+}
+
+function closeModalRaw() {
+    document.getElementById('modalBackdrop').classList.add('hidden');
+    _onDismiss = null;
+}
+
+// Cierre por ✕ / Escape / click fuera: respeta el callback de descarte.
+function dismissModal() {
+    if (_onDismiss) { const d = _onDismiss; _onDismiss = null; closeModalRaw(); d(); }
+    else closeModalRaw();
+}
+
+function isModalOpen() {
+    return !document.getElementById('modalBackdrop').classList.contains('hidden');
+}
+
+// Confirmación con promesa (reemplazo de confirm()).
+function confirmModal(message, opts) {
+    opts = opts || {};
+    return new Promise((resolve) => {
+        let done = false;
+        const finish = (v) => { if (done) return; done = true; closeModalRaw(); resolve(v); };
+        const body = el('p', 'modal-text');
+        body.textContent = message;
+        openModal(opts.title || 'Confirmar', body, [
+            { label: opts.cancelLabel || 'Cancelar', cls: 'ghost', onClick: () => finish(false) },
+            { label: opts.okLabel || 'Aceptar', cls: opts.danger ? 'danger' : 'primary', onClick: () => finish(true) },
+        ], () => finish(false));
+    });
 }
 
 // ---------- Conversión servidor <-> editor ----------
@@ -312,7 +382,14 @@ function setByPath(obj, path, val) {
 function renderSidebar() {
     const list = document.getElementById('jobList');
     list.innerHTML = '';
+    const q = state.filter.trim().toLowerCase();
+    let shown = 0;
     state.jobs.forEach((job, i) => {
+        if (q) {
+            const hay = `${job.name} ${job.label}`.toLowerCase();
+            if (!hay.includes(q)) return;
+        }
+        shown++;
         const li = el('li', i === state.selected ? 'active' : '');
         li.appendChild(el('span', 'jl-name', job.name || '(sin nombre)'));
         const parts = [];
@@ -323,6 +400,12 @@ function renderSidebar() {
         li.addEventListener('click', () => selectJob(i));
         list.appendChild(li);
     });
+
+    if (shown === 0) {
+        list.appendChild(el('li', 'jl-empty', q ? 'Sin resultados' : 'No hay jobs todavía'));
+    }
+    const count = document.getElementById('jobCount');
+    if (count) count.textContent = q ? `${shown}/${state.jobs.length}` : `${state.jobs.length}`;
 }
 
 function selectJob(i) {
@@ -749,27 +832,132 @@ function newJob() {
         steps: [],
     };
     state.jobs.push(ed);
+    state.dirty = true;
     selectJob(state.jobs.length - 1);
+}
+
+// Genera un nombre interno único a partir de uno base (para duplicar/importar).
+function uniqueName(base) {
+    base = (base || 'job').trim() || 'job';
+    const taken = (nm) => state.jobs.some((j) => j.name.trim() === nm);
+    if (!taken(base)) return base;
+    let candidate = base + '_copia', i = 2;
+    while (taken(candidate)) { candidate = `${base}_copia${i}`; i++; }
+    return candidate;
+}
+
+function duplicateJob() {
+    if (state.selected < 0) return;
+    syncFormToState();
+    const src = state.jobs[state.selected];
+    const copy = JSON.parse(JSON.stringify(src)); // el modelo de editor es plano (JSON-safe)
+    copy.name = uniqueName(src.name);
+    copy.label = src.label ? `${src.label} (copia)` : src.label;
+    state.jobs.push(copy);
+    state.dirty = true;
+    selectJob(state.jobs.length - 1);
+    toast('Job duplicado. Revisa el nombre y pulsa Guardar.', 'ok');
 }
 
 async function saveJob() {
     syncFormToState();
     const ed = state.jobs[state.selected];
-    if (!ed.name.trim()) { alert('El job necesita un nombre interno.'); return; }
+    if (!ed.name.trim()) { toast('El job necesita un nombre interno.', 'error'); return; }
     const dup = state.jobs.some((j, i) => i !== state.selected && j.name.trim() === ed.name.trim());
-    if (dup) { alert('Ya existe otro job con ese nombre.'); return; }
+    if (dup) { toast('Ya existe otro job con ese nombre.', 'error'); return; }
+    // Espeja la validación del servidor (validateJob) para dar feedback preciso.
+    const ids = {};
+    for (let i = 0; i < ed.steps.length; i++) {
+        const id = (ed.steps[i].id || '').trim();
+        if (!id) { toast(`El step #${i + 1} necesita un ID.`, 'error'); return; }
+        if (ids[id]) { toast(`ID de step duplicado: ${id}`, 'error'); return; }
+        ids[id] = true;
+    }
     await nui('saveJob', toServer(ed));
+    state.dirty = false;
+    toast(`Job "${ed.name.trim()}" guardado.`, 'ok');
 }
 
 async function deleteJob() {
     if (state.selected < 0) return;
     const ed = state.jobs[state.selected];
-    if (!confirm(`¿Eliminar el job "${ed.name}"? Esto borra su definición de la base de datos.`)) return;
+    const ok = await confirmModal(
+        `¿Eliminar el job "${ed.name}"? Esto borra su definición de la base de datos.`,
+        { title: 'Eliminar job', okLabel: 'Eliminar', danger: true });
+    if (!ok) return;
     await nui('deleteJob', { name: ed.name });
     state.jobs.splice(state.selected, 1);
     state.selected = -1;
     renderSidebar();
     renderEditor();
+    toast(`Job "${ed.name}" eliminado.`, 'ok');
+}
+
+// ---------- Import / Export JSON ----------
+function copyText(txt) {
+    const fallback = () => {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        ta.remove();
+        toast(ok ? 'Copiado al portapapeles.' : 'No se pudo copiar; selecciona y copia manualmente.', ok ? 'ok' : 'error');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => toast('Copiado al portapapeles.', 'ok'), fallback);
+    } else {
+        fallback();
+    }
+}
+
+function exportJob() {
+    if (state.selected < 0) return;
+    syncFormToState();
+    const ed = state.jobs[state.selected];
+    const jsonStr = JSON.stringify(toServer(ed), null, 2);
+    const ta = el('textarea', 'modal-textarea');
+    ta.value = jsonStr;
+    ta.readOnly = true;
+    openModal(`Exportar "${ed.name}"`, ta, [
+        { label: 'Cerrar', cls: 'ghost', onClick: closeModalRaw },
+        { label: 'Copiar', cls: 'primary', onClick: () => copyText(jsonStr) },
+    ]);
+    ta.focus();
+    ta.select();
+}
+
+function importJob() {
+    const ta = el('textarea', 'modal-textarea');
+    ta.placeholder = 'Pega aquí el JSON de un job exportado…';
+    openModal('Importar job (JSON)', ta, [
+        { label: 'Cancelar', cls: 'ghost', onClick: closeModalRaw },
+        { label: 'Importar', cls: 'primary', onClick: () => doImport(ta.value) },
+    ]);
+    ta.focus();
+}
+
+function doImport(text) {
+    let obj;
+    try { obj = JSON.parse(text); }
+    catch (e) { toast('JSON inválido: ' + e.message, 'error'); return; }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+        toast('El JSON debe ser un objeto de job.', 'error'); return;
+    }
+    if (typeof obj.name !== 'string' || !obj.name.trim()) {
+        toast('El job necesita un campo "name".', 'error'); return;
+    }
+    if (state.selected >= 0) syncFormToState();
+    const ed = toEditor(obj);
+    ed.name = uniqueName(ed.name); // evita colisiones con jobs existentes
+    state.jobs.push(ed);
+    state.dirty = true;
+    closeModalRaw();
+    selectJob(state.jobs.length - 1);
+    toast('Job importado. Revisa y pulsa Guardar.', 'ok');
 }
 
 // ============================================================
@@ -794,6 +982,10 @@ function open(payload) {
     state.jobs = (payload.jobs || []).map(toEditor);
     state.settings = payload.settings || {};
     state.selected = state.jobs.length ? 0 : -1;
+    state.filter = '';
+    state.dirty = false;
+    const search = document.getElementById('jobSearch');
+    if (search) search.value = '';
     document.getElementById('overlay').classList.remove('hidden');
     switchTab('jobs');
     renderSidebar();
@@ -806,6 +998,12 @@ function close() {
 }
 
 async function requestClose() {
+    if (state.dirty) {
+        const ok = await confirmModal(
+            'Tienes cambios sin guardar en el panel. Si cierras se perderán (no afecta lo ya guardado en la base de datos).',
+            { title: 'Cambios sin guardar', okLabel: 'Cerrar sin guardar', cancelLabel: 'Seguir editando', danger: true });
+        if (!ok) return;
+    }
     close();
     await nui('close');
 }
@@ -818,14 +1016,39 @@ window.addEventListener('message', (ev) => {
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'Escape') requestClose();
+    if (e.key === 'Escape') {
+        if (isModalOpen()) { dismissModal(); return; } // Esc cierra primero el modal
+        requestClose();
+    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closeBtn').addEventListener('click', requestClose);
     document.getElementById('newJobBtn').addEventListener('click', newJob);
+    document.getElementById('importJobBtn').addEventListener('click', importJob);
     document.getElementById('saveJobBtn').addEventListener('click', saveJob);
     document.getElementById('deleteJobBtn').addEventListener('click', deleteJob);
+    document.getElementById('duplicateJobBtn').addEventListener('click', duplicateJob);
+    document.getElementById('exportJobBtn').addEventListener('click', exportJob);
+
+    // Buscador de la barra lateral
+    document.getElementById('jobSearch').addEventListener('input', (e) => {
+        state.filter = e.target.value;
+        renderSidebar();
+    });
+
+    // Modal: cierre por ✕ y por click en el fondo
+    document.getElementById('modalCloseBtn').addEventListener('click', dismissModal);
+    document.getElementById('modalBackdrop').addEventListener('click', (e) => {
+        if (e.target.id === 'modalBackdrop') dismissModal();
+    });
+
+    // Marca cambios sin guardar ante cualquier edición del formulario.
+    // (Asignar .value por código no dispara estos eventos, así que no hay falsos positivos.)
+    const form = document.getElementById('jobForm');
+    form.addEventListener('input', () => { state.dirty = true; });
+    form.addEventListener('change', () => { state.dirty = true; });
+
     document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
     document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
         await nui('saveSettings', {
