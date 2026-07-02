@@ -18,17 +18,11 @@ local function isNear(src, coords, margin)
 end
 
 -- ¿El jugador cumple el job que exige la estación? Devuelve true/false + razón.
--- Si el job no define requirements.job, cualquiera puede (servicio libre).
+-- PRIVADO POR DEFECTO: si el job no define requirements.job, se exige el trabajo
+-- del framework con el mismo nombre interno (ver Bridge.RequiredJob).
 local function meetsJob(src, job)
-    local req = job.requirements
-    if not req or not req.job then return true end
-
-    local needName, needGrade
-    if type(req.job) == 'table' then
-        needName, needGrade = req.job.name, req.job.grade or 0
-    else
-        needName, needGrade = req.job, 0
-    end
+    local needName, needGrade = Bridge.RequiredJob(job)
+    if not needName then return true end -- job sin nombre (caso anómalo): no bloquear
 
     local pj = Bridge.Framework.GetJob(src)
     if not pj or pj.name ~= needName then
@@ -44,7 +38,7 @@ end
 RegisterNetEvent('job_creator:toggleDuty', function(jobName)
     local src = source
     local job = Config.Jobs[jobName]
-    if not job or not job.duty then return end
+    if not job or job.enabled == false or not job.duty then return end
 
     -- Anti-exploit: debe estar en el punto de duty.
     if not isNear(src, job.duty.coords, 5.0) then return end
@@ -69,6 +63,10 @@ RegisterNetEvent('job_creator:toggleDuty', function(jobName)
         description = newState and 'Has entrado en servicio' or 'Has salido de servicio',
         type = newState and 'success' or 'inform',
     })
+
+    if Config.AuditActions and JobCreator and JobCreator.Audit then
+        JobCreator.Audit(src, newState and 'entró en servicio' or 'salió de servicio', jobName)
+    end
 end)
 
 -- Comprueba en servidor que el jugador está en duty del job (para stash, etc.)
@@ -81,7 +79,7 @@ end
 RegisterNetEvent('job_creator:openServiceStash', function(jobName)
     local src = source
     local job = Config.Jobs[jobName]
-    if not job or not job.stash then return end
+    if not job or job.enabled == false or not job.stash then return end
 
     if not isNear(src, job.stash.coords, 5.0) then return end
 
@@ -101,19 +99,78 @@ RegisterNetEvent('job_creator:openServiceStash', function(jobName)
     TriggerClientEvent('job_creator:doOpenStash', src, stashId)
 end)
 
+-- ---------- Armería / taquilla (sacar items con límite) ----------
+RegisterNetEvent('job_creator:takeLockerItem', function(jobName, itemName)
+    local src = source
+    local job = Config.Jobs[jobName]
+    if not job or job.enabled == false or not job.locker then return end
+
+    -- Busca el item en la lista configurada (no se confía en el cliente).
+    local entry
+    for _, it in ipairs(job.locker.items or {}) do
+        if it.name == itemName then entry = it break end
+    end
+    if not entry then return end
+
+    if not isNear(src, job.locker.coords, 5.0) then return end
+
+    local ok, reason = meetsJob(src, job)
+    if not ok then
+        Bridge.Notify.SendTo(src, { title = job.label, description = reason, type = 'error' })
+        return
+    end
+
+    if job.locker.requireDuty ~= false and not isOnDuty(src, jobName) then
+        Bridge.Notify.SendTo(src, { title = job.label, description = 'Debes estar en servicio', type = 'error' })
+        return
+    end
+
+    -- Grado mínimo del item (ej: rifle solo para sargento+).
+    if (tonumber(entry.minGrade) or 0) > 0 then
+        local pj = Bridge.Framework.GetJob(src)
+        if not pj or (pj.grade or 0) < entry.minGrade then
+            Bridge.Notify.SendTo(src, { title = job.label, description = 'Tu rango no permite coger esto', type = 'error' })
+            return
+        end
+    end
+
+    local amount = math.max(1, math.floor(tonumber(entry.amount) or 1))
+    local limit = math.floor(tonumber(entry.limit) or 0)
+    local give = amount
+
+    if limit > 0 then
+        local current = Bridge.Inventory.GetItemCount(src, entry.name)
+        if current >= limit then
+            Bridge.Notify.SendTo(src, { title = job.label, description = ('Ya tienes el máximo de %s (%d)'):format(entry.label or entry.name, limit), type = 'error' })
+            return
+        end
+        give = math.min(amount, limit - current)
+    end
+
+    if not Bridge.Inventory.CanCarry(src, entry.name, give) then
+        Bridge.Notify.SendTo(src, { title = job.label, description = 'No tienes espacio en el inventario', type = 'error' })
+        return
+    end
+
+    Bridge.Inventory.AddItem(src, entry.name, give)
+    Bridge.Notify.SendTo(src, { title = job.label, description = ('Has cogido %dx %s'):format(give, entry.label or entry.name), type = 'success' })
+
+    if Config.AuditActions and JobCreator and JobCreator.Audit then
+        JobCreator.Audit(src, ('sacó de la armería %dx %s'):format(give, entry.name), jobName)
+    end
+end)
+
 -- ---------- Registro de stashes ----------
 -- (Re)registra los stashes de todos los jobs con sección stash.
 local function registerStashes()
     for name, job in pairs(Config.Jobs) do
-        if job.stash then
+        if job.stash and job.enabled ~= false then
             local stashId = job.stash.id or ('jc_' .. name)
             -- groups: restringe el acceso al job a nivel ox (seguridad real,
-            -- independiente del duty que es solo UX).
-            local groups
-            if job.requirements and job.requirements.job then
-                local jn = type(job.requirements.job) == 'table' and job.requirements.job.name or job.requirements.job
-                groups = { [jn] = 0 }
-            end
+            -- independiente del duty que es solo UX). PRIVADO POR DEFECTO: usa el
+            -- trabajo requerido resuelto (explícito o el nombre interno del job).
+            local needName, needGrade = Bridge.RequiredJob(job)
+            local groups = needName and { [needName] = needGrade or 0 } or nil
             Bridge.Inventory.RegisterStash({
                 id = stashId,
                 label = job.stash.label or job.label,

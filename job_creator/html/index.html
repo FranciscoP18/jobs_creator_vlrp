@@ -18,60 +18,186 @@
                     </div>
                 </div>
                 <div class="tabs">
-                    <button class="tab active" data-tab="jobs">Jobs</button>
-                    <button class="tab" data-tab="settings">Ajustes</button>
+                    <button class="tab active" data-tab="jobs" data-i18n="tab.jobs">Jobs</button>
+                    <button class="tab" data-tab="settings" data-i18n="tab.settings">Ajustes</button>
                 </div>
+                <button id="helpBtn" class="icon-btn" title="Ayuda y atajos (?)">?</button>
                 <button id="closeBtn" class="icon-btn" title="Cerrar (Esc)">✕</button>
             </header>
 
             <!-- ===================== VISTA JOBS ===================== -->
             <div id="view-jobs" class="view">
-                <aside id="sidebar">
-                    <button id="newJobBtn" class="btn primary block">+ Nuevo job</button>
-                    <button id="importJobBtn" class="btn ghost block">⇪ Importar JSON</button>
-                    <div class="search-box">
-                        <input id="jobSearch" type="text" placeholder="Buscar job…" />
-                        <span id="jobCount" class="count">0</span>
+                <!-- OVERVIEW: lista de jobs -->
+                <div id="jobsOverview" class="overview">
+                    <div class="ov-toolbar">
+                        <div class="ov-actions">
+                            <button id="newJobBtn" class="btn primary" data-i18n="side.new">+ Nuevo job</button>
+                            <button id="templateJobBtn" class="btn ghost" data-i18n="side.template">📋 Desde plantilla</button>
+                            <button id="importJobBtn" class="btn ghost" data-i18n="side.import">⇪ Importar JSON</button>
+                            <button id="exportAllBtn" class="btn ghost" data-i18n="side.backup" title="Exportar todos los jobs">⬇ Backup</button>
+                            <button id="importAllBtn" class="btn ghost" data-i18n="side.restore" title="Restaurar varios jobs">⬆ Restaurar</button>
+                        </div>
+                        <div class="ov-search">
+                            <div class="search-box">
+                                <input id="jobSearch" type="text" placeholder="Buscar job…" data-i18n-ph="side.searchPh" />
+                                <span id="jobCount" class="count">0</span>
+                            </div>
+                            <button id="refreshStatsBtn" class="icon-btn small" title="Refrescar estadísticas">↻</button>
+                        </div>
                     </div>
-                    <ul id="jobList"></ul>
-                </aside>
-                <main id="editor">
-                    <div id="emptyState" class="empty">
-                        <p>Selecciona un job de la izquierda o crea uno nuevo.</p>
+                    <div id="jobCards" class="job-cards"></div>
+                </div>
+
+                <!-- EDITOR -->
+                <div id="jobsEditor" class="editor-wrap hidden">
+                    <div class="editor-topbar">
+                        <button type="button" id="backToJobsBtn" class="btn ghost" data-i18n="ed.back">← Volver</button>
+                        <span id="editorJobTitle" class="editor-title"></span>
+                        <div class="et-spacer"></div>
+                        <button type="button" id="zoneMapBtn" class="icon-btn small" title="Mapa de zonas del job">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                        </button>
+                        <button type="button" id="paletteBtn" class="cmdk-chip" title="Acciones rápidas (Ctrl+K)">
+                            <i class="fa-solid fa-bolt"></i><span>Ctrl K</span>
+                        </button>
+                        <button type="button" id="jobHealth" class="job-health" title="Salud del job — clic para ver el informe">
+                            <span class="jh-bar"><span class="jh-fill"></span></span>
+                            <span class="jh-text">—</span>
+                        </button>
                     </div>
-                    <form id="jobForm" class="hidden"></form>
-                    <footer id="editorFooter" class="hidden">
-                        <button type="button" id="deleteJobBtn" class="btn danger">Eliminar job</button>
+                    <div class="editor-body">
+                        <nav id="editorNav" class="editor-nav"></nav>
+                        <form id="jobForm"></form>
+                    </div>
+                    <footer id="editorFooter">
+                        <button type="button" id="deleteJobBtn" class="btn danger" data-i18n="foot.delete">Eliminar job</button>
                         <div class="footer-right">
-                            <button type="button" id="duplicateJobBtn" class="btn ghost">Duplicar</button>
-                            <button type="button" id="exportJobBtn" class="btn ghost">Exportar JSON</button>
-                            <button type="button" id="saveJobBtn" class="btn primary">Guardar job</button>
+                            <button type="button" id="undoBtn" class="btn ghost" title="Deshacer (Ctrl+Z)">↶</button>
+                            <button type="button" id="redoBtn" class="btn ghost" title="Rehacer (Ctrl+Y)">↷</button>
+                            <button type="button" id="validateJobBtn" class="btn ghost" data-i18n="foot.validate">🔍 Validar</button>
+                            <button type="button" id="duplicateJobBtn" class="btn ghost" data-i18n="foot.duplicate">Duplicar</button>
+                            <button type="button" id="exportJobBtn" class="btn ghost" data-i18n="foot.export">Exportar JSON</button>
+                            <button type="button" id="saveJobBtn" class="btn primary" data-i18n="foot.save">Guardar job</button>
                         </div>
                     </footer>
-                </main>
+                </div>
             </div>
 
             <!-- ===================== VISTA AJUSTES ===================== -->
             <div id="view-settings" class="view hidden">
                 <div class="settings-wrap">
-                    <h2>Ajustes globales</h2>
+                    <h2 data-i18n="set.title">Ajustes globales</h2>
                     <label class="field check">
                         <input type="checkbox" id="set-debug" />
-                        <span>Modo debug (zonas de target visibles + prints extra)</span>
+                        <span data-i18n="set.debug">Modo debug (zonas de target visibles + prints extra)</span>
+                    </label>
+                    <label class="field check">
+                        <input type="checkbox" id="set-markers" />
+                        <span data-i18n="set.markers">Mostrar marcadores al acercarse a las zonas</span>
+                    </label>
+                    <label class="field check">
+                        <input type="checkbox" id="set-syncranks" />
+                        <span data-i18n="set.syncranks">Rangos: job_creator manda (sincroniza a ESX al guardar)</span>
                     </label>
                     <label class="field">
-                        <span>Intervalo de pago por defecto (ms)</span>
+                        <span data-i18n="set.payint">Intervalo de pago por defecto (ms)</span>
                         <input type="number" id="set-payinterval" min="1000" step="1000" />
                     </label>
                     <label class="field">
-                        <span>Modo de interacción</span>
+                        <span data-i18n="set.interact">Modo de interacción</span>
                         <select id="set-interactmode">
                             <option value="target">Target (ox_target / qb-target)</option>
                             <option value="key">Tecla E (acercarse y pulsar E)</option>
                             <option value="both">Ambos (target + tecla E)</option>
                         </select>
                     </label>
-                    <button type="button" id="saveSettingsBtn" class="btn primary">Guardar ajustes</button>
+                    <label class="field">
+                        <span data-i18n="set.society">Caja de empresa (sociedad)</span>
+                        <select id="set-society">
+                            <option value="internal" data-i18n="set.society.internal">Interna (job_creator)</option>
+                            <option value="esx_society" data-i18n="set.society.esx">esx_society (compartida ESX)</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span data-i18n="set.lang">Idioma del panel</span>
+                        <select id="set-lang">
+                            <option value="es">Español</option>
+                            <option value="en">English</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span data-i18n="set.accent">Color de acento del panel (se guarda en este equipo)</span>
+                        <div id="accentSwatches" class="swatches"></div>
+                    </label>
+
+                    <h2 data-i18n="set.providers">Proveedores (requiere reiniciar el recurso)</h2>
+                    <div class="grid">
+                        <label class="field">
+                            <span>Framework</span>
+                            <select id="set-prov-framework" data-prov="framework">
+                                <option value="auto">Auto</option>
+                                <option value="es_extended">es_extended</option>
+                                <option value="qbx_core">qbx_core</option>
+                                <option value="qb-core">qb-core</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Inventario</span>
+                            <select id="set-prov-inventory" data-prov="inventory">
+                                <option value="auto">Auto</option>
+                                <option value="ox_inventory">ox_inventory</option>
+                                <option value="qb-inventory">qb-inventory</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Notificaciones</span>
+                            <select id="set-prov-notify" data-prov="notify">
+                                <option value="auto">Auto</option>
+                                <option value="vlrp-notify">vlrp-notify</option>
+                                <option value="ox_lib">ox_lib</option>
+                                <option value="esx_notify">esx_notify</option>
+                                <option value="qb-core">qb-core</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Target</span>
+                            <select id="set-prov-target" data-prov="target">
+                                <option value="auto">Auto</option>
+                                <option value="ox_target">ox_target</option>
+                                <option value="qb-target">qb-target</option>
+                                <option value="qtarget">qtarget</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Menús</span>
+                            <select id="set-prov-menu" data-prov="menu">
+                                <option value="auto">Auto</option>
+                                <option value="ox_lib">ox_lib</option>
+                                <option value="qb-menu">qb-menu</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Texto flotante (tecla E)</span>
+                            <select id="set-prov-textui" data-prov="textui">
+                                <option value="auto">Auto</option>
+                                <option value="vlrp-textui">vlrp-textui</option>
+                                <option value="cd_drawtextui">cd_drawtextui</option>
+                                <option value="ox_lib">ox_lib</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Ropa / apariencia</span>
+                            <select id="set-prov-clothing" data-prov="clothing">
+                                <option value="auto">Auto</option>
+                                <option value="illenium-appearance">illenium-appearance</option>
+                                <option value="fivem-appearance">fivem-appearance</option>
+                                <option value="qb-clothing">qb-clothing</option>
+                                <option value="esx_skin">esx_skin</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <button type="button" id="saveSettingsBtn" class="btn primary" data-i18n="set.save">Guardar ajustes</button>
                 </div>
             </div>
         </div>
@@ -79,6 +205,23 @@
 
     <!-- Notificaciones internas del panel (no bloquean, a diferencia de alert) -->
     <div id="toasts"></div>
+
+    <!-- Paleta de comandos (Ctrl+K): saltar a secciones/jobs y ejecutar acciones -->
+    <div id="paletteBackdrop" class="hidden">
+        <div id="palette" role="dialog" aria-label="Acciones rápidas">
+            <div class="pal-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input id="paletteInput" type="text" placeholder="Saltar a una sección, abrir un job o ejecutar una acción…" autocomplete="off" spellcheck="false" />
+                <span class="pal-esc">ESC</span>
+            </div>
+            <div id="paletteList" class="pal-list"></div>
+            <div class="pal-foot">
+                <span><b>↑↓</b> moverse</span>
+                <span><b>↵</b> ejecutar</span>
+                <span><b>Esc</b> cerrar</span>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal genérico reutilizable (confirmaciones + import/export JSON) -->
     <div id="modalBackdrop" class="hidden">

@@ -7,7 +7,7 @@
 
 Bridge.Inventory = Bridge.Inventory or {}
 
-local provider = Bridge.Resolve({ 'ox_inventory', 'qb-inventory' })
+local provider = Bridge.Pick('inventory', { 'ox_inventory', 'qb-inventory' })
 
 if provider == 'ox_inventory' then
     function Bridge.Inventory.OpenStash(id)

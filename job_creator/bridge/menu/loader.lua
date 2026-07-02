@@ -7,7 +7,7 @@
 
 Bridge.Menu = {}
 
-local provider = Bridge.Resolve({ 'ox_lib', 'qb-menu' })
+local provider = Bridge.Pick('menu', { 'ox_lib', 'qb-menu' })
 
 local function ox_Open(data)
     local options = {}

@@ -19,6 +19,7 @@ shared_scripts {
     -- el código usa `if lib then ...` y cae a los fallbacks. No es obligatorio.
     '@ox_lib/init.lua',
     'config/config.lua',
+    'config/providers.lua', -- overrides de proveedores generados por el panel
     'config/jobs/*.lua',
 }
 
@@ -33,6 +34,7 @@ client_scripts {
     -- Core
     'client/main.lua',
     'client/interact.lua',   -- capa de interacción (target / tecla E)
+    'client/actions.lua',    -- framework de acciones (esposar, reparar, ...)
     'client/jobs.lua',
     'client/admin.lua',   -- puente NUI del panel
 }
@@ -49,6 +51,8 @@ server_scripts {
     'server/jobs.lua',
     'server/store.lua',     -- persistencia DB + sync + API del panel
     'server/service.lua',   -- duty + stashes de servicio (police/ems/mechanic)
+    'server/actions.lua',   -- valida + reenvía las acciones (esposar, incautar, ...)
+    'server/manage.lua',    -- salarios por grado + menú de jefe (contratar/despedir)
 }
 
 -- Panel NUI (editor de jobs in-game)

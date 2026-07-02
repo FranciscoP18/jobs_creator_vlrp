@@ -16,7 +16,7 @@
 
 Bridge.Target = {}
 
-local provider = Bridge.Resolve({ 'ox_target', 'qb-target', 'qtarget' })
+local provider = Bridge.Pick('target', { 'ox_target', 'qb-target', 'qtarget' })
 
 -- ---------- Adaptador ox_target ----------
 local function ox_AddBoxZone(data)
@@ -84,17 +84,41 @@ local function qb_RemoveZone(id)
     exports['qb-target']:RemoveZone(id)
 end
 
+-- ---------- Opciones globales sobre jugadores / vehículos (acciones) ----------
+-- options = { { name, label, icon, distance, canInteract, onSelect } }
+local function ox_AddGlobalPlayer(options) exports.ox_target:addGlobalPlayer(options) end
+local function ox_RemoveGlobalPlayer(names) exports.ox_target:removeGlobalPlayer(names) end
+local function ox_AddGlobalVehicle(options) exports.ox_target:addGlobalVehicle(options) end
+local function ox_RemoveGlobalVehicle(names) exports.ox_target:removeGlobalVehicle(names) end
+
+local function qb_AddGlobalPlayer(options)
+    exports['qb-target']:AddGlobalPlayer({ options = qb_MapOptions(options), distance = 2.5 })
+end
+local function qb_AddGlobalVehicle(options)
+    exports['qb-target']:AddGlobalVehicle({ options = qb_MapOptions(options), distance = 2.5 })
+end
+local function qb_RemoveGlobalPlayer(names) exports['qb-target']:RemoveGlobalPlayer(names) end
+local function qb_RemoveGlobalVehicle(names) exports['qb-target']:RemoveGlobalVehicle(names) end
+
 -- ---------- Asignación según provider ----------
 if provider == 'ox_target' then
     Bridge.Target.AddBoxZone    = ox_AddBoxZone
     Bridge.Target.AddEntityZone = ox_AddEntityZone
     Bridge.Target.RemoveZone    = ox_RemoveZone
+    Bridge.Target.AddGlobalPlayer    = ox_AddGlobalPlayer
+    Bridge.Target.RemoveGlobalPlayer = ox_RemoveGlobalPlayer
+    Bridge.Target.AddGlobalVehicle   = ox_AddGlobalVehicle
+    Bridge.Target.RemoveGlobalVehicle = ox_RemoveGlobalVehicle
     Bridge.Print('info', 'Target provider: ox_target')
 
 elseif provider == 'qb-target' or provider == 'qtarget' then
     Bridge.Target.AddBoxZone    = qb_AddBoxZone
     Bridge.Target.AddEntityZone = qb_AddEntityZone
     Bridge.Target.RemoveZone    = qb_RemoveZone
+    Bridge.Target.AddGlobalPlayer    = qb_AddGlobalPlayer
+    Bridge.Target.RemoveGlobalPlayer = qb_RemoveGlobalPlayer
+    Bridge.Target.AddGlobalVehicle   = qb_AddGlobalVehicle
+    Bridge.Target.RemoveGlobalVehicle = qb_RemoveGlobalVehicle
     Bridge.Print('info', 'Target provider: ' .. provider)
 
 else
@@ -104,4 +128,8 @@ else
     Bridge.Target.AddBoxZone    = function() noop() return nil end
     Bridge.Target.AddEntityZone = function() noop() return nil end
     Bridge.Target.RemoveZone    = noop
+    Bridge.Target.AddGlobalPlayer    = noop
+    Bridge.Target.RemoveGlobalPlayer = noop
+    Bridge.Target.AddGlobalVehicle   = noop
+    Bridge.Target.RemoveGlobalVehicle = noop
 end

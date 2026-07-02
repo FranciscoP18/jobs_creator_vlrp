@@ -7,7 +7,19 @@
 
 Bridge.Notify = {}
 
-local provider = Bridge.Resolve({ 'ox_lib', 'esx_notify', 'qb-core' })
+-- vlrp-notify tiene prioridad si está instalado (notify propio del servidor).
+local provider = Bridge.Pick('notify', { 'vlrp-notify', 'ox_lib', 'esx_notify', 'qb-core' })
+
+-- Mapeo de tipos del bridge -> tipos de vlrp-notify (verde/naranja/rojo/info).
+local VLRP_TYPES = {
+    success = 'verde', error = 'rojo', warning = 'naranja', warn = 'naranja',
+    info = 'info', inform = 'info',
+}
+
+local function vlrp_Notify(data)
+    local tipo = VLRP_TYPES[data.type or 'info'] or 'info'
+    exports['vlrp-notify']:Notificar(tipo, data.title or '', data.description or '', nil, nil, data.duration)
+end
 
 local function ox_Notify(data)
     exports.ox_lib:notify({
@@ -30,7 +42,10 @@ local function esx_Notify(data)
     TriggerEvent('esx:showNotification', data.description or data.title)
 end
 
-if provider == 'ox_lib' then
+if provider == 'vlrp-notify' then
+    Bridge.Notify.Send = vlrp_Notify
+    Bridge.Print('info', 'Notify provider: vlrp-notify')
+elseif provider == 'ox_lib' then
     Bridge.Notify.Send = ox_Notify
     Bridge.Print('info', 'Notify provider: ox_lib')
 elseif provider == 'qb-core' then

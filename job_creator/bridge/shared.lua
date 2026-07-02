@@ -22,6 +22,35 @@ function Bridge.Resolve(candidates)
     return nil
 end
 
+-- Igual que Resolve, pero respeta Config.Providers[category] si no es 'auto'.
+-- Si el recurso forzado no está iniciado, avisa y cae a la autodetección.
+function Bridge.Pick(category, candidates)
+    local forced = Config and Config.Providers and Config.Providers[category]
+    if forced and forced ~= 'auto' and forced ~= '' then
+        if Bridge.IsStarted(forced) then
+            return forced
+        end
+        Bridge.Print('warn', ('Proveedor forzado "%s" para "%s" no está iniciado; usando autodetección'):format(forced, category))
+    end
+    return Bridge.Resolve(candidates)
+end
+
+-- Resuelve el TRABAJO del framework requerido para acceder a un job.
+--   * Si el job declara requirements.job -> se usa ese (nombre [+ grado mínimo]).
+--   * Si NO lo declara -> PRIVADO POR DEFECTO: exige el trabajo del framework con
+--     el mismo nombre interno del job (job 'basurero' -> ESX job 'basurero').
+-- Devuelve needName, needGrade. (needName puede ser nil si el job no tiene nombre.)
+function Bridge.RequiredJob(job)
+    local rj = job and job.requirements and job.requirements.job
+    if rj then
+        if type(rj) == 'table' then
+            return rj.name, tonumber(rj.grade) or 0
+        end
+        return rj, 0
+    end
+    return job and job.name, 0
+end
+
 -- Log con prefijo y color (^1 rojo, ^2 verde, ^3 amarillo, ^0 reset)
 function Bridge.Print(level, msg)
     local colors = { info = '^2', warn = '^3', error = '^1' }
@@ -85,7 +114,9 @@ local function transformJobCoords(job, fn)
     end
 
     -- Stations (jobs de servicio): cada una tiene coords y opcionalmente size.
-    for _, key in ipairs({ 'duty', 'stash', 'wardrobe' }) do
+    -- 'garage' y 'boss' siguen el mismo patrón (coords + size). El 'spawn' del
+    -- garaje NO se toca: es {x,y,z,h} y debe conservar el heading.
+    for _, key in ipairs({ 'duty', 'stash', 'wardrobe', 'garage', 'boss', 'locker' }) do
         local station = out[key]
         if type(station) == 'table' then
             if station.coords then station.coords = fn(station.coords) end

@@ -23,7 +23,7 @@
 
 Bridge.Clothing = {}
 
-local appearanceResource = Bridge.Resolve({
+local appearanceResource = Bridge.Pick('clothing', {
     'illenium-appearance', 'fivem-appearance', 'qb-clothing', 'esx_skin',
 })
 

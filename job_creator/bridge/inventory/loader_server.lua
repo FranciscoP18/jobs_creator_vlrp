@@ -9,8 +9,8 @@
 
 Bridge.Inventory = {}
 
-local provider = Bridge.Resolve({ 'ox_inventory', 'qb-inventory' })
-local framework = Bridge.Resolve({ 'es_extended', 'qb-core' })
+local provider = Bridge.Pick('inventory', { 'ox_inventory', 'qb-inventory' })
+local framework = Bridge.Pick('framework', { 'es_extended', 'qb-core' })
 
 -- Cache del objeto de framework (ESX/QB) para no recrearlo cada llamada.
 local ESX, QBCore
@@ -129,6 +129,31 @@ else
     -- bloquear los jobs con un "sin espacio" falso (AddItem simplemente no hará nada).
     Bridge.Inventory.CanCarry     = function() return true end
     Bridge.Print('error', 'Sin sistema de inventario ni framework detectado')
+end
+
+-- ---------- Lista de items (autocompletado del panel) ----------
+-- Devuelve una lista ordenada de nombres de items para sugerir en el editor.
+-- Solo lectura, no toca inventarios; vacía si el provider no expone catálogo.
+function Bridge.Inventory.GetItemNames()
+    local names = {}
+    if provider == 'ox_inventory' then
+        local ok, items = pcall(function() return exports.ox_inventory:Items() end)
+        if ok and type(items) == 'table' then
+            for name in pairs(items) do names[#names + 1] = name end
+        end
+    elseif framework == 'qb-core' and QBCore then
+        local shared = QBCore.Shared and QBCore.Shared.Items
+        if type(shared) == 'table' then
+            for name in pairs(shared) do names[#names + 1] = name end
+        end
+    elseif framework == 'es_extended' and ESX then
+        local ok, items = pcall(function() return ESX.GetItems and ESX.GetItems() end)
+        if ok and type(items) == 'table' then
+            for name in pairs(items) do names[#names + 1] = name end
+        end
+    end
+    table.sort(names)
+    return names
 end
 
 -- ---------- Registro de stashes (cofres de servicio) ----------
